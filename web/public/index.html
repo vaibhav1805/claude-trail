@@ -1,0 +1,389 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>claude-trail</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #ffffff;
+    --fg: #1b1b1f;
+    --muted: #6b7280;
+    --border: #e5e7eb;
+    --accent: #2563eb;
+    --row-hover: #f3f4f6;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #16171b;
+      --fg: #e6e6e9;
+      --muted: #9ca3af;
+      --border: #2c2d33;
+      --accent: #60a5fa;
+      --row-hover: #1f2025;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: var(--bg);
+    color: var(--fg);
+    display: flex;
+    height: 100vh;
+    overflow: hidden;
+  }
+  #list {
+    width: 420px;
+    min-width: 320px;
+    border-right: 1px solid var(--border);
+    overflow-y: auto;
+  }
+  #list header {
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    background: var(--bg);
+  }
+  #list header h1 {
+    font-size: 15px;
+    margin: 0 0 8px;
+  }
+  #search {
+    width: 100%;
+    padding: 6px 8px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--bg);
+    color: var(--fg);
+    font-size: 13px;
+  }
+  .row {
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+  }
+  .row:hover { background: var(--row-hover); }
+  .row.active { background: var(--row-hover); border-left: 3px solid var(--accent); }
+  .row .type {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+  .row .time {
+    float: right;
+    font-size: 11px;
+    color: var(--muted);
+  }
+  .row .excerpt {
+    margin-top: 4px;
+    font-size: 13px;
+    color: var(--fg);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+  }
+  #detail {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px 28px;
+  }
+  #detail .placeholder {
+    color: var(--muted);
+    font-size: 14px;
+    margin-top: 40px;
+    text-align: center;
+  }
+  .meta-bar {
+    font-size: 12px;
+    color: var(--muted);
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  .msg {
+    margin-bottom: 14px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    white-space: pre-wrap;
+    word-break: break-word;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+  .msg .role {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    color: var(--muted);
+    display: block;
+    margin-bottom: 4px;
+  }
+  .msg.user { background: var(--row-hover); }
+  .msg.meta { color: var(--muted); font-size: 12px; border-style: dashed; }
+  #empty { padding: 16px; color: var(--muted); font-size: 13px; }
+  .tabs {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 16px;
+  }
+  .tab-btn {
+    font-size: 12px;
+    font-weight: 600;
+    padding: 5px 12px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+  }
+  .tab-btn.active {
+    color: var(--accent);
+    border-color: var(--accent);
+  }
+  .summary-block {
+    padding: 12px 14px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    white-space: pre-wrap;
+    word-break: break-word;
+    font-size: 13px;
+    line-height: 1.6;
+  }
+  .summary-meta {
+    margin-top: 10px;
+    font-size: 11px;
+    color: var(--muted);
+  }
+  .summary-meta button {
+    font-size: 11px;
+    color: var(--accent);
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    text-decoration: underline;
+  }
+</style>
+</head>
+<body>
+  <div id="list">
+    <header>
+      <h1>claude-trail</h1>
+      <input id="search" type="text" placeholder="Filter by agent_type or text…" />
+    </header>
+    <div id="rows"></div>
+    <div id="empty" style="display:none">No captured subagent runs yet.</div>
+  </div>
+  <div id="detail">
+    <div class="placeholder">Select a captured subagent run to view its transcript.</div>
+  </div>
+
+<script>
+  let entries = [];
+  let activeIndex = null;
+  let summaryModeEnabled = false;
+
+  let currentEntry = null;
+  let currentMessages = null;
+  let currentView = 'trace';
+  const summaryCache = {}; // archive_path -> {summary, model, generatedAt}
+
+  const rowsEl = document.getElementById('rows');
+  const detailEl = document.getElementById('detail');
+  const searchEl = document.getElementById('search');
+  const emptyEl = document.getElementById('empty');
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, (c) => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    }[c]));
+  }
+
+  function render(list) {
+    rowsEl.innerHTML = '';
+    emptyEl.style.display = list.length ? 'none' : 'block';
+    list.forEach((entry) => {
+      const div = document.createElement('div');
+      div.className = 'row' + (entry.__index === activeIndex ? ' active' : '');
+      div.innerHTML = `
+        <span class="type">${escapeHtml(entry.agent_type || 'unknown')}</span>
+        <span class="time">${entry.timestamp ? new Date(entry.timestamp).toLocaleString() : ''}</span>
+        <div class="excerpt">${escapeHtml(entry.last_assistant_message || '')}</div>
+      `;
+      div.addEventListener('click', () => selectEntry(entry));
+      rowsEl.appendChild(div);
+    });
+  }
+
+  function applyFilter() {
+    const q = searchEl.value.trim().toLowerCase();
+    if (!q) { render(entries); return; }
+    render(entries.filter((e) =>
+      (e.agent_type || '').toLowerCase().includes(q) ||
+      (e.last_assistant_message || '').toLowerCase().includes(q) ||
+      (e.cwd || '').toLowerCase().includes(q)
+    ));
+  }
+
+  function metaBarHtml(entry) {
+    return `
+      <div class="meta-bar">
+        agent_type: ${escapeHtml(entry.agent_type || 'unknown')} &middot;
+        agent_id: ${escapeHtml(entry.agent_id || '')} &middot;
+        captured: ${entry.timestamp ? new Date(entry.timestamp).toLocaleString() : ''} &middot;
+        cwd: ${escapeHtml(entry.cwd || '')}
+      </div>
+    `;
+  }
+
+  function tabsHtml() {
+    if (!summaryModeEnabled) return '';
+    return `
+      <div class="tabs">
+        <button class="tab-btn ${currentView === 'trace' ? 'active' : ''}" data-view="trace">Trace</button>
+        <button class="tab-btn ${currentView === 'summary' ? 'active' : ''}" data-view="summary">Summary</button>
+      </div>
+    `;
+  }
+
+  function traceBodyHtml(messages) {
+    const body = messages.map((m) => {
+      if (!m.text) return '';
+      const cls = m.role === 'user' ? 'user' : (m.role ? 'assistant' : 'meta');
+      const label = m.role || m.type || '';
+      return `<div class="msg ${cls}"><span class="role">${escapeHtml(label)}</span>${escapeHtml(m.text)}</div>`;
+    }).filter(Boolean).join('');
+    return body || '<div class="placeholder">Transcript had no readable message content.</div>';
+  }
+
+  function attachTabHandlers() {
+    detailEl.querySelectorAll('.tab-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        currentView = btn.dataset.view;
+        renderDetail();
+      });
+    });
+  }
+
+  function attachSummaryHandlers(entry) {
+    const regenBtn = detailEl.querySelector('[data-action="regenerate-summary"]');
+    if (regenBtn) {
+      regenBtn.addEventListener('click', () => fetchSummary(entry, true));
+    }
+  }
+
+  function renderDetail() {
+    if (!currentEntry) return;
+    const metaBar = metaBarHtml(currentEntry);
+    const tabs = tabsHtml();
+
+    if (currentView === 'summary') {
+      detailEl.innerHTML = metaBar + tabs + summaryBodyHtml(currentEntry);
+      attachTabHandlers();
+      attachSummaryHandlers(currentEntry);
+      if (!summaryCache[currentEntry.archive_path]) fetchSummary(currentEntry, false);
+      return;
+    }
+
+    detailEl.innerHTML = metaBar + tabs + (currentMessages ? traceBodyHtml(currentMessages) : '<div class="placeholder">Loading transcript…</div>');
+    attachTabHandlers();
+  }
+
+  function summaryBodyHtml(entry) {
+    const cached = summaryCache[entry.archive_path];
+    if (cached && cached.loading) {
+      return '<div class="placeholder">Generating summary…</div>';
+    }
+    if (cached && cached.error) {
+      return `<div class="placeholder">Failed to generate summary: ${escapeHtml(cached.error)}</div>`;
+    }
+    if (cached) {
+      return `
+        <div class="summary-block">${escapeHtml(cached.summary)}</div>
+        <div class="summary-meta">
+          model: ${escapeHtml(cached.model || '')} &middot;
+          generated: ${cached.generatedAt ? new Date(cached.generatedAt).toLocaleString() : ''} &middot;
+          <button data-action="regenerate-summary">Regenerate</button>
+        </div>
+      `;
+    }
+    return '<div class="placeholder">Generating summary…</div>';
+  }
+
+  async function fetchSummary(entry, forceRefresh) {
+    summaryCache[entry.archive_path] = { loading: true };
+    if (currentEntry === entry && currentView === 'summary') renderDetail();
+
+    try {
+      const res = await fetch(
+        '/api/summary?path=' + encodeURIComponent(entry.archive_path) + (forceRefresh ? '&refresh=1' : '')
+      );
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'failed to generate summary');
+      summaryCache[entry.archive_path] = data;
+    } catch (err) {
+      summaryCache[entry.archive_path] = { error: err.message };
+    }
+
+    if (currentEntry === entry && currentView === 'summary') renderDetail();
+  }
+
+  async function selectEntry(entry) {
+    activeIndex = entry.__index;
+    render(entries.filter((e) => e.__matchesCurrentFilter !== false));
+    applyFilter();
+
+    currentEntry = entry;
+    currentMessages = null;
+    currentView = 'trace';
+
+    if (!entry.archive_path) {
+      detailEl.innerHTML = '<div class="placeholder">No transcript was archived for this entry.</div>';
+      return;
+    }
+
+    renderDetail();
+
+    try {
+      const res = await fetch('/api/transcript?path=' + encodeURIComponent(entry.archive_path));
+      const messages = await res.json();
+      if (!res.ok) throw new Error(messages.error || 'failed to load transcript');
+      currentMessages = messages;
+      if (currentEntry === entry) renderDetail();
+    } catch (err) {
+      if (currentEntry === entry) {
+        detailEl.innerHTML = `<div class="placeholder">Failed to load transcript: ${escapeHtml(err.message)}</div>`;
+      }
+    }
+  }
+
+  searchEl.addEventListener('input', applyFilter);
+
+  fetch('/api/config')
+    .then((res) => res.json())
+    .then((data) => {
+      summaryModeEnabled = !!(data.summaryMode && data.summaryMode.enabled);
+      if (currentEntry) renderDetail();
+    })
+    .catch(() => { summaryModeEnabled = false; });
+
+  fetch('/api/entries')
+    .then((res) => res.json())
+    .then((data) => {
+      entries = data.map((e, i) => ({ ...e, __index: i }));
+      render(entries);
+    })
+    .catch((err) => {
+      emptyEl.style.display = 'block';
+      emptyEl.textContent = 'Failed to load index: ' + err.message;
+    });
+</script>
+</body>
+</html>

@@ -1,0 +1,12 @@
+node_modules/
+dist/
+build/
+*.log
+.DS_Store
+
+# Legacy local data dir from before the OS-standard data dir migration.
+# Real installs write to the OS-appropriate location instead (see src/lib/paths.js).
+/archive/
+/index.jsonl
+/hook-errors.log
+/config.json
