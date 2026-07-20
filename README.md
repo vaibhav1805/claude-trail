@@ -1,8 +1,40 @@
 # claude-trail
 
-A small, dependency-free Node.js CLI that archives Claude Code subagent transcripts as they complete, so past subagent work stays searchable instead of disappearing when a session ends. Includes a local web dashboard for browsing captures.
+![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)
+
+**Your subagents do real work. By default, it disappears the moment the session ends — and the next time you need it, you pay to redo it.**
+
+A single research or debugging subagent can easily burn tens of thousands of tokens working something out. Without claude-trail, that answer is gone once the session ends — the only way to get it back is to spend those tokens again. claude-trail archives every subagent transcript automatically, the instant it finishes, so "have we solved this before?" is a free, instant search instead of a second full investigation. A local dashboard to browse it, a `search` command to find it, and a skill so Claude checks its own history *before* redoing the work, without you having to ask.
 
 ![claude-trail dashboard demo](docs/demo.gif)
+
+![claude-trail search demo](docs/search-demo.gif)
+
+## Why claude-trail
+
+- **Saves tokens, not just time** — re-running a subagent to rediscover something it already figured out can cost as much as the original investigation. Retrieving it from claude-trail costs nothing beyond the search itself: index and `--deep` search are pure local text matching, no LLM call involved.
+- **Automatic, not manual** — a `SubagentStop` hook archives the moment a subagent finishes. Nothing to run, nothing to remember.
+- **Claude can search its own history** — the bundled `claude-trail-search` skill lets Claude proactively check prior subagent work *before* redoing it, not just you browsing a dashboard afterward.
+- **Actually searchable** — index search or full-text `--deep` scans, from the CLI, the dashboard, or Claude itself.
+- **Cheap, cached summaries when you do want one** — task / approach / outcome, generated on-demand via your own `claude` CLI (Haiku by default), cached so you never pay for the same summary twice.
+- **Local-only, zero runtime dependencies** — the dashboard binds to `127.0.0.1` only; no telemetry, no external services.
+
+## vs. claude-code-log
+
+[claude-code-log](https://github.com/daaain/claude-code-log) is a related, more mature tool worth knowing about — different enough in approach that picking the right one matters:
+
+| | claude-trail | claude-code-log |
+|---|---|---|
+| **Capture** | Automatic, live — a hook fires the moment a subagent finishes | Manual, post-hoc — you run it against transcripts that already exist |
+| **Scope** | Subagent transcripts specifically | Any Claude Code transcript — full sessions, whole projects |
+| **Interface** | Local dynamic web dashboard + CLI | Static HTML/Markdown export + TUI |
+| **Search** | CLI + dashboard, index or full-text (`--deep`) | Browser-side filtering, natural-language date ranges |
+| **Claude-callable** | Yes — a skill lets Claude query its own history mid-session | Not documented — appears to be a standalone viewer |
+| **Summaries** | On-demand LLM summary per entry | Token-usage stats, no LLM summarization |
+| **Retention** | Configurable auto-prune (`retentionDays`) | No built-in retention management — reads whatever transcripts already exist |
+| **Install** | Node.js — npm, prebuilt binary, or source | Python — pip, uvx, or source |
+
+Rough rule of thumb: reach for claude-trail if you want subagent work captured automatically and queryable by Claude itself. Reach for claude-code-log if you want a richer, more established viewer/exporter for full session history — timelines, token stats, multi-provider (Codex, Antigravity) support, commit-SHA linking.
 
 ## Install
 
@@ -135,8 +167,6 @@ A "Summary" tab next to "Trace" generates a short, structured summary (task / ap
 Works by shelling out to the local `claude` CLI in headless mode (`claude -p --bare --tools ""`), reusing whatever auth your Claude Code install already has — no separate API key. Tool use and hooks are disabled for this call; it only ever reads the prompt text it's given and returns text. Each summary is cached to `<archived-transcript>.summary.json` next to the transcript, so re-opening an entry doesn't re-run the LLM call — "Regenerate" forces a refresh. `claude-trail prune` removes these cache files along with their transcript when an entry ages out.
 
 ## Search
-
-![claude-trail search demo](docs/search-demo.gif)
 
 ```
 claude-trail search <query> [--type <agent_type>] [--limit N] [--deep] [--json]
