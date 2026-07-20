@@ -4,7 +4,22 @@ A small, dependency-free Node.js CLI that archives Claude Code subagent transcri
 
 ![claude-trail dashboard demo](docs/demo.gif)
 
-> **Status:** prebuilt binaries (no Node required) are built by CI and attached to [GitHub Releases](../../releases) — see [Building binaries](#building-binaries) below. A one-line `curl | sh` / `install.ps1` installer that downloads, verifies, and runs `configure` for you doesn't exist yet — for now, download the binary for your platform from a release, or run from source with plain Node (see [Running from source](#running-from-source)).
+## Install
+
+**npm** (not published yet — this will be the primary way to install once it is):
+```
+npm install -g claude-trail
+```
+
+**Prebuilt binary** — for a machine with no Node installed at all. Download `claude-trail-<platform>-<arch>` for your platform from the [latest release](../../releases/latest), `chmod +x` it, and put it on your `PATH` as `claude-trail`. See [Building binaries](#building-binaries) for how these are built.
+
+**From source** (for contributors):
+```
+git clone https://github.com/vaibhav1805/claude-trail.git
+cd claude-trail
+npm link
+```
+`npm link` puts a `claude-trail` command on your `PATH` backed by this checkout. Every command below assumes `claude-trail` is on `PATH` one way or another — from npm, a downloaded binary, or `npm link`.
 
 ## Commands
 
@@ -21,23 +36,24 @@ claude-trail --version                            Print the installed version
 claude-trail --help                               Show this help
 ```
 
-## Running from source
+## Setup
 
 ```
-node bin/claude-trail.js configure
+claude-trail configure
 ```
 
-This is the whole setup flow for now — clone the repo, run `configure` with plain Node. `configure` is idempotent (safe to re-run) and:
+`configure` is idempotent (safe to re-run) and:
 
 1. Creates the OS-standard data directory (see below).
 2. Writes a default `config.json` there, **only if one doesn't already exist**.
 3. Registers two hooks in your **global** `~/.claude/settings.json` — `SubagentStop → claude-trail archive` and `SessionStart → claude-trail prune` (async) — surgically merged in: only claude-trail's own entries are touched, every other tool's hooks in that file are left byte-for-byte untouched.
+4. Installs the `claude-trail-search` skill into `~/.claude/skills/claude-trail-search/` (see [Skill](#skill) below).
 
 That's it — the dashboard is **not** started automatically. Archiving needs no background process at all: it's entirely driven by the two hooks above, which fire per-event and exit. See [Running the dashboard](#running-the-dashboard) below for starting it when you want it.
 
-`claude-trail clean` reverses configure — removes only claude-trail's hook entries and stops the background dashboard if one is running — but **leaves the data directory in place** so you decide whether to keep your archive.
+`claude-trail clean` reverses configure — removes only claude-trail's hook entries and skill, and stops the background dashboard if one is running — but **leaves the data directory in place** so you decide whether to keep your archive.
 
-The registered hooks invoke the exact Node binary and script path that were active when you ran `configure` (`process.execPath` + the resolved script path) — not a bare `node` on PATH. This matters because hook runners often run with a minimal environment that can't resolve `node` via `#!/usr/bin/env node`. Run `configure` from a prebuilt binary instead of `node bin/claude-trail.js` and the hooks reference that binary directly — no Node install needed on the machine at all.
+The registered hooks invoke the exact binary that was active when you ran `configure` — either the resolved `node` + script path (source or npm install) or the SEA binary itself (no Node needed on the machine at all, in that case) — never a bare `node`/`claude-trail` relying on `PATH`. This matters because hook runners often run with a minimal environment that can't resolve commands via `PATH` or `#!/usr/bin/env node`.
 
 ## Building binaries
 
@@ -47,7 +63,7 @@ npm run build:binary
 
 Produces a single self-contained executable at `dist/claude-trail-<platform>-<arch>` — a Node [Single Executable Application (SEA)](https://nodejs.org/api/single-executable-applications.html): esbuild bundles the CLI into one file, Node's `--experimental-sea-config` turns that into a blob, [postject](https://github.com/nodejs/postject) injects the blob (plus the dashboard's `index.html` and the claude-trail-search `SKILL.md`, both embedded as named assets since there's no sibling file tree next to a single-file binary) into a copy of the `node` binary that built it. Only builds for the platform/arch you run it on — there's no cross-compiling a macOS binary from Linux, since it starts from a copy of the *running* `node` executable.
 
-`.github/workflows/build-binaries.yml` runs this on a 4-platform matrix (macOS arm64, macOS x64, Linux x64, Windows x64) whenever a `v*.*.*` tag is pushed, and attaches the resulting binaries to a GitHub Release for that tag. No installer script consumes these yet (see the status note above) — for now, grab the right binary from a release and run it directly.
+`.github/workflows/build-binaries.yml` runs this on a 4-platform matrix (macOS arm64, macOS x64, Linux x64, Windows x64) whenever a `v*.*.*` tag is pushed, and attaches the resulting binaries to a GitHub Release for that tag — this is what [Install](#install) above points at.
 
 **macOS caveat:** the binary is ad-hoc signed (`codesign --sign -`) as part of the build — required for it to launch at all once postject strips Node's original signature — but that's *not* the same as notarization. Gatekeeper will still flag it as being from an "unidentified developer" on first run. Real notarization (an Apple Developer certificate + Apple's notary service) is a deliberately deferred, separate piece of work.
 
@@ -82,13 +98,13 @@ claude-trail service start
 
 **Quick summary:**
 ```
-node bin/claude-trail.js status
+claude-trail status
 ```
 Prints the data directory, total entries, a breakdown by `agent_type`, oldest/newest capture timestamps, current `retentionDays`, and on-disk archive size.
 
 **Dashboard:**
 ```
-node bin/claude-trail.js dashboard
+claude-trail dashboard
 ```
 Then open `http://127.0.0.1:<webPort>` (default `4870`) — see [Running the dashboard](#running-the-dashboard) above for foreground vs. background. Left sidebar lists captured runs, filterable by `agent_type`, text, or `cwd`; right pane shows the transcript for whatever row you click.
 
