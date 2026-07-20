@@ -41,6 +41,17 @@ function looksLikeSubagentTranscript(transcriptPath) {
   return segments.includes('subagents');
 }
 
+// Async/background subagent invocations have been observed to report the
+// *main* session transcript as transcript_path even though a dedicated
+// per-agent transcript genuinely exists alongside it, at a predictable
+// location: <project dir>/<session_id>/subagents/agent-<agent_id>.jsonl.
+// Used only as a fallback when transcript_path itself doesn't already
+// point at a subagents/ file.
+function candidateSubagentTranscriptPath(transcriptPath, sessionId, agentId) {
+  if (!transcriptPath || !sessionId || !agentId) return null;
+  return path.join(path.dirname(transcriptPath), sessionId, 'subagents', `agent-${agentId}.jsonl`);
+}
+
 function run() {
   const raw = readStdin();
   if (!raw) return;
@@ -69,28 +80,36 @@ function run() {
   const archiveRoot = path.join(dataDir(), 'archive');
   const indexPath = path.join(dataDir(), 'index.jsonl');
 
+  let sourcePath = null;
+  if (transcript_path && fs.existsSync(transcript_path) && looksLikeSubagentTranscript(transcript_path)) {
+    sourcePath = transcript_path;
+  } else if (transcript_path) {
+    const candidate = candidateSubagentTranscriptPath(transcript_path, session_id, agent_id);
+    if (candidate && fs.existsSync(candidate)) {
+      sourcePath = candidate;
+    }
+  }
+
   let archivePath = null;
   let skippedReason = null;
 
-  if (transcript_path && fs.existsSync(transcript_path)) {
-    if (looksLikeSubagentTranscript(transcript_path)) {
-      const destDir = path.join(archiveRoot, safeType);
-      try {
-        fs.mkdirSync(destDir, { recursive: true });
-        const destFile = path.join(destDir, `${timestamp.replace(/[:.]/g, '-')}-${safeId}.jsonl`);
-        fs.copyFileSync(transcript_path, destFile);
-        archivePath = path.relative(dataDir(), destFile);
-      } catch (err) {
-        logError(err);
-      }
-    } else {
-      skippedReason = 'transcript_path_not_a_subagent_transcript';
-      logError(
-        `Skipped archiving for agent_id=${agent_id || 'unknown'}: transcript_path ` +
-        `"${transcript_path}" is not under a subagents/ directory (looks like the ` +
-        `main session transcript, not a dedicated subagent transcript).`
-      );
+  if (sourcePath) {
+    const destDir = path.join(archiveRoot, safeType);
+    try {
+      fs.mkdirSync(destDir, { recursive: true });
+      const destFile = path.join(destDir, `${timestamp.replace(/[:.]/g, '-')}-${safeId}.jsonl`);
+      fs.copyFileSync(sourcePath, destFile);
+      archivePath = path.relative(dataDir(), destFile);
+    } catch (err) {
+      logError(err);
     }
+  } else if (transcript_path) {
+    skippedReason = 'transcript_path_not_a_subagent_transcript';
+    logError(
+      `Skipped archiving for agent_id=${agent_id || 'unknown'}: transcript_path ` +
+      `"${transcript_path}" is not under a subagents/ directory, and no dedicated ` +
+      `subagent transcript was found at the derived fallback path either.`
+    );
   }
 
   const entry = {

@@ -2,6 +2,8 @@
 
 A small, dependency-free Node.js CLI that archives Claude Code subagent transcripts as they complete, so past subagent work stays searchable instead of disappearing when a session ends. Includes a local web dashboard for browsing captures.
 
+![claude-trail dashboard demo](docs/demo.gif)
+
 > **Status:** prebuilt binaries (no Node required) are built by CI and attached to [GitHub Releases](../../releases) — see [Building binaries](#building-binaries) below. A one-line `curl | sh` / `install.ps1` installer that downloads, verifies, and runs `configure` for you doesn't exist yet — for now, download the binary for your platform from a release, or run from source with plain Node (see [Running from source](#running-from-source)).
 
 ## Commands

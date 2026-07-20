@@ -3,9 +3,32 @@
   "version": "0.1.0",
   "description": "Archives Claude Code subagent transcripts so past subagent work stays searchable instead of disappearing when a session ends.",
   "license": "MIT",
+  "keywords": [
+    "claude-code",
+    "claude",
+    "subagent",
+    "transcript",
+    "archive",
+    "cli",
+    "dashboard"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/vaibhav1805/claude-trail.git"
+  },
+  "homepage": "https://github.com/vaibhav1805/claude-trail#readme",
+  "bugs": {
+    "url": "https://github.com/vaibhav1805/claude-trail/issues"
+  },
   "bin": {
     "claude-trail": "bin/claude-trail.js"
   },
+  "files": [
+    "bin",
+    "src",
+    "web/public",
+    "skills"
+  ],
   "scripts": {
     "build:binary": "node scripts/build-sea.js"
   },
