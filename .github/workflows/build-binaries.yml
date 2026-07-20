@@ -14,9 +14,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: macos-14
+          - os: macos-15
             label: macos-arm64
-          - os: macos-13
+          - os: macos-15-intel
             label: macos-x64
           - os: ubuntu-latest
             label: linux-x64
