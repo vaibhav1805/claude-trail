@@ -1,5 +1,5 @@
 {
-  "name": "claude-trail",
+  "name": "@flurryhead/claude-trail",
   "version": "0.1.0",
   "description": "Archives Claude Code subagent transcripts so past subagent work stays searchable instead of disappearing when a session ends.",
   "license": "MIT",
@@ -22,6 +22,9 @@
   },
   "bin": {
     "claude-trail": "bin/claude-trail.js"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "files": [
     "bin",

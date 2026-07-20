@@ -40,8 +40,9 @@ Rough rule of thumb: reach for claude-trail if you want subagent work captured a
 
 **npm** (not published yet — this will be the primary way to install once it is):
 ```
-npm install -g claude-trail
+npm install -g @flurryhead/claude-trail
 ```
+Scoped as `@flurryhead/claude-trail` on the registry (the unscoped `claude-trail` name was too close to an existing package) — but it still gives you a plain `claude-trail` command on `PATH`, same as everywhere else in this README.
 
 **Prebuilt binary** — for a machine with no Node installed at all. Download `claude-trail-<platform>-<arch>` for your platform from the [latest release](../../releases/latest), `chmod +x` it, and put it on your `PATH` as `claude-trail`. See [Building binaries](#building-binaries) for how these are built.
 
