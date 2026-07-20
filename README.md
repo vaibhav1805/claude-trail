@@ -47,7 +47,7 @@ claude-trail configure
 1. Creates the OS-standard data directory (see below).
 2. Writes a default `config.json` there, **only if one doesn't already exist**.
 3. Registers two hooks in your **global** `~/.claude/settings.json` — `SubagentStop → claude-trail archive` and `SessionStart → claude-trail prune` (async) — surgically merged in: only claude-trail's own entries are touched, every other tool's hooks in that file are left byte-for-byte untouched.
-4. Installs the `claude-trail-search` skill into `~/.claude/skills/claude-trail-search/` (see [Skill](#skill) below).
+4. Installs the `claude-trail-search` skill into `~/.claude/skills/claude-trail-search/` (see [Search](#search) below).
 
 That's it — the dashboard is **not** started automatically. Archiving needs no background process at all: it's entirely driven by the two hooks above, which fire per-event and exit. See [Running the dashboard](#running-the-dashboard) below for starting it when you want it.
 
@@ -55,17 +55,25 @@ That's it — the dashboard is **not** started automatically. Archiving needs no
 
 The registered hooks invoke the exact binary that was active when you ran `configure` — either the resolved `node` + script path (source or npm install) or the SEA binary itself (no Node needed on the machine at all, in that case) — never a bare `node`/`claude-trail` relying on `PATH`. This matters because hook runners often run with a minimal environment that can't resolve commands via `PATH` or `#!/usr/bin/env node`.
 
-## Building binaries
+## Configuration
 
+Edit `config.json` in the data directory:
+
+```json
+{
+  "retentionDays": 30,
+  "webPort": 4870,
+  "summaryMode": {
+    "enabled": true,
+    "model": "haiku"
+  }
+}
 ```
-npm run build:binary
-```
 
-Produces a single self-contained executable at `dist/claude-trail-<platform>-<arch>` — a Node [Single Executable Application (SEA)](https://nodejs.org/api/single-executable-applications.html): esbuild bundles the CLI into one file, Node's `--experimental-sea-config` turns that into a blob, [postject](https://github.com/nodejs/postject) injects the blob (plus the dashboard's `index.html` and the claude-trail-search `SKILL.md`, both embedded as named assets since there's no sibling file tree next to a single-file binary) into a copy of the `node` binary that built it. Only builds for the platform/arch you run it on — there's no cross-compiling a macOS binary from Linux, since it starts from a copy of the *running* `node` executable.
-
-`.github/workflows/build-binaries.yml` runs this on a 4-platform matrix (macOS arm64, macOS x64, Linux x64, Windows x64) whenever a `v*.*.*` tag is pushed, and attaches the resulting binaries to a GitHub Release for that tag — this is what [Install](#install) above points at.
-
-**macOS caveat:** the binary is ad-hoc signed (`codesign --sign -`) as part of the build — required for it to launch at all once postject strips Node's original signature — but that's *not* the same as notarization. Gatekeeper will still flag it as being from an "unidentified developer" on first run. Real notarization (an Apple Developer certificate + Apple's notary service) is a deliberately deferred, separate piece of work.
+- `retentionDays` — how long archived transcripts and index entries are kept before `claude-trail prune` removes them. Defaults to 30 if missing or invalid.
+- `webPort` — the port `claude-trail dashboard` binds to. Defaults to 4870 if missing or invalid.
+- `summaryMode.enabled` — whether the "Summary" tab and `/api/summary` endpoint are available. Defaults to `true`.
+- `summaryMode.model` — the model alias passed to `claude -p --model`. Defaults to `haiku`.
 
 ## Data directory
 
@@ -118,7 +126,9 @@ A "Summary" tab next to "Trace" generates a short, structured summary (task / ap
 
 Works by shelling out to the local `claude` CLI in headless mode (`claude -p --bare --tools ""`), reusing whatever auth your Claude Code install already has — no separate API key. Tool use and hooks are disabled for this call; it only ever reads the prompt text it's given and returns text. Each summary is cached to `<archived-transcript>.summary.json` next to the transcript, so re-opening an entry doesn't re-run the LLM call — "Regenerate" forces a refresh. `claude-trail prune` removes these cache files along with their transcript when an entry ages out.
 
-### Searching archives
+## Search
+
+![claude-trail search demo](docs/search-demo.gif)
 
 ```
 claude-trail search <query> [--type <agent_type>] [--limit N] [--deep] [--json]
@@ -127,33 +137,21 @@ claude-trail search --show <archive_path>
 
 Searches the index (`agent_type`, `cwd`, last assistant message) by default — fast, but only matches what's already summarized in `index.jsonl`. Pass `--deep` to also scan the full transcript body of each entry, which is slower but catches matches that only appear mid-conversation. `--show <archive_path>` (the path a search result prints) prints the full cleaned transcript for one entry. `--json` gives structured output for scripting or for another tool/agent to consume.
 
-This is also what the `claude-trail-search` Claude Code skill (see [Skill](#skill)) calls under the hood to pull prior context into a session.
-
-## Skill
-
-`skills/claude-trail-search/SKILL.md` is a Claude Code skill that tells Claude when to proactively run `claude-trail search` — e.g. "have we hit this before?" or "what did that earlier subagent actually do?" — instead of you having to invoke the CLI yourself. It's a thin wrapper: all the actual searching happens in `claude-trail search`/`--show` above; the skill just adds the trigger and usage notes so Claude reaches for it unprompted when archived context is likely relevant.
+`skills/claude-trail-search/SKILL.md` is a Claude Code skill that wraps the command above — it tells Claude when to proactively run `claude-trail search` (e.g. "have we hit this before?" or "what did that earlier subagent actually do?") instead of you having to invoke the CLI yourself. It's a thin wrapper: all the actual searching happens in the CLI command above; the skill just adds the trigger and usage notes so Claude reaches for it unprompted when archived context is likely relevant.
 
 `configure` installs it into `~/.claude/skills/claude-trail-search/` automatically (from source or an npm install, that's a symlink back to the package's own copy, so it stays in sync; from a prebuilt binary it's a real file copy, since there's no source tree next to a single-file executable to link to). `clean` removes it. No separate step needed.
 
-## Configuration
+## Building binaries
 
-Edit `config.json` in the data directory:
-
-```json
-{
-  "retentionDays": 30,
-  "webPort": 4870,
-  "summaryMode": {
-    "enabled": true,
-    "model": "haiku"
-  }
-}
+```
+npm run build:binary
 ```
 
-- `retentionDays` — how long archived transcripts and index entries are kept before `claude-trail prune` removes them. Defaults to 30 if missing or invalid.
-- `webPort` — the port `claude-trail dashboard` binds to. Defaults to 4870 if missing or invalid.
-- `summaryMode.enabled` — whether the "Summary" tab and `/api/summary` endpoint are available. Defaults to `true`.
-- `summaryMode.model` — the model alias passed to `claude -p --model`. Defaults to `haiku`.
+Produces a single self-contained executable at `dist/claude-trail-<platform>-<arch>` — a Node [Single Executable Application (SEA)](https://nodejs.org/api/single-executable-applications.html): esbuild bundles the CLI into one file, Node's `--experimental-sea-config` turns that into a blob, [postject](https://github.com/nodejs/postject) injects the blob (plus the dashboard's `index.html` and the claude-trail-search `SKILL.md`, both embedded as named assets since there's no sibling file tree next to a single-file binary) into a copy of the `node` binary that built it. Only builds for the platform/arch you run it on — there's no cross-compiling a macOS binary from Linux, since it starts from a copy of the *running* `node` executable.
+
+`.github/workflows/build-binaries.yml` runs this on a 4-platform matrix (macOS arm64, macOS x64, Linux x64, Windows x64) whenever a `v*.*.*` tag is pushed, and attaches the resulting binaries to a GitHub Release for that tag — this is what [Install](#install) above points at.
+
+**macOS caveat:** the binary is ad-hoc signed (`codesign --sign -`) as part of the build — required for it to launch at all once postject strips Node's original signature — but that's *not* the same as notarization. Gatekeeper will still flag it as being from an "unidentified developer" on first run. Real notarization (an Apple Developer certificate + Apple's notary service) is a deliberately deferred, separate piece of work.
 
 ## Privacy / safety
 
