@@ -24,8 +24,35 @@ function globalSettingsPath() {
   return path.join(os.homedir(), '.claude', 'settings.json');
 }
 
-function claudeSkillsDir() {
+function projectSettingsPath() {
+  return path.join(process.cwd(), '.claude', 'settings.json');
+}
+
+// configure/clean default to the current project (hooks only fire for
+// subagent activity in that project); --global switches both to the
+// user-level ~/.claude location instead.
+function settingsPath(isGlobal) {
+  return isGlobal ? globalSettingsPath() : projectSettingsPath();
+}
+
+function globalSkillsDir() {
   return path.join(os.homedir(), '.claude', 'skills');
 }
 
-module.exports = { dataDir, globalSettingsPath, claudeSkillsDir };
+function projectSkillsDir() {
+  return path.join(process.cwd(), '.claude', 'skills');
+}
+
+function skillsDir(isGlobal) {
+  return isGlobal ? globalSkillsDir() : projectSkillsDir();
+}
+
+module.exports = {
+  dataDir,
+  globalSettingsPath,
+  projectSettingsPath,
+  settingsPath,
+  globalSkillsDir,
+  projectSkillsDir,
+  skillsDir,
+};

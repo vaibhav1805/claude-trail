@@ -24,8 +24,8 @@ npm link
 ## Commands
 
 ```
-claude-trail configure                           First-time setup (data dir, hooks)
-claude-trail clean                                Remove hooks and stop the background dashboard
+claude-trail configure [--global]                 First-time setup (data dir, hooks) — project-scoped by default
+claude-trail clean [--global]                     Remove hooks and stop the background dashboard
 claude-trail archive                              Archive a subagent transcript (invoked by the SubagentStop hook)
 claude-trail prune                                Prune old archived transcripts (invoked by the SessionStart hook)
 claude-trail status                               Print a summary of captured runs
@@ -42,16 +42,24 @@ claude-trail --help                               Show this help
 claude-trail configure
 ```
 
-`configure` is idempotent (safe to re-run) and:
+`configure` is idempotent (safe to re-run) and, by default, **project-scoped** — it only wires claude-trail into the project you run it from, so archiving only fires for subagent activity in that project. Run it again with `--global` to instead wire it into every project on the machine:
 
-1. Creates the OS-standard data directory (see below).
+```
+claude-trail configure --global
+```
+
+Either way, it:
+
+1. Creates the OS-standard data directory (see below) — **always the same single location regardless of scope**, so a project-scoped and a globally-scoped setup still archive into one shared, searchable place.
 2. Writes a default `config.json` there, **only if one doesn't already exist**.
-3. Registers two hooks in your **global** `~/.claude/settings.json` — `SubagentStop → claude-trail archive` and `SessionStart → claude-trail prune` (async) — surgically merged in: only claude-trail's own entries are touched, every other tool's hooks in that file are left byte-for-byte untouched.
-4. Installs the `claude-trail-search` skill into `~/.claude/skills/claude-trail-search/` (see [Search](#search) below).
+3. Registers two hooks — `SubagentStop → claude-trail archive` and `SessionStart → claude-trail prune` (async) — into `.claude/settings.json` in the current directory by default, or `~/.claude/settings.json` with `--global` — surgically merged in: only claude-trail's own entries are touched, every other tool's hooks in that file are left byte-for-byte untouched.
+4. Installs the `claude-trail-search` skill into `.claude/skills/claude-trail-search/` (project-scoped) or `~/.claude/skills/claude-trail-search/` (`--global`) — matching whichever scope you configured — see [Search](#search) below.
+
+You can mix scopes freely — e.g. `configure --global` for blanket coverage everywhere, plus a project-scoped `configure` in one repo does nothing extra (the global hooks already cover it) but is harmless if run anyway.
 
 That's it — the dashboard is **not** started automatically. Archiving needs no background process at all: it's entirely driven by the two hooks above, which fire per-event and exit. See [Running the dashboard](#running-the-dashboard) below for starting it when you want it.
 
-`claude-trail clean` reverses configure — removes only claude-trail's hook entries and skill, and stops the background dashboard if one is running — but **leaves the data directory in place** so you decide whether to keep your archive.
+`claude-trail clean` (also `[--global]`, matching whichever scope you configured) reverses configure — removes only claude-trail's hook entries and skill, and stops the background dashboard if one is running — but **leaves the data directory in place** so you decide whether to keep your archive.
 
 The registered hooks invoke the exact binary that was active when you ran `configure` — either the resolved `node` + script path (source or npm install) or the SEA binary itself (no Node needed on the machine at all, in that case) — never a bare `node`/`claude-trail` relying on `PATH`. This matters because hook runners often run with a minimal environment that can't resolve commands via `PATH` or `#!/usr/bin/env node`.
 
@@ -139,7 +147,7 @@ Searches the index (`agent_type`, `cwd`, last assistant message) by default — 
 
 `skills/claude-trail-search/SKILL.md` is a Claude Code skill that wraps the command above — it tells Claude when to proactively run `claude-trail search` (e.g. "have we hit this before?" or "what did that earlier subagent actually do?") instead of you having to invoke the CLI yourself. It's a thin wrapper: all the actual searching happens in the CLI command above; the skill just adds the trigger and usage notes so Claude reaches for it unprompted when archived context is likely relevant.
 
-`configure` installs it into `~/.claude/skills/claude-trail-search/` automatically (from source or an npm install, that's a symlink back to the package's own copy, so it stays in sync; from a prebuilt binary it's a real file copy, since there's no source tree next to a single-file executable to link to). `clean` removes it. No separate step needed.
+`configure` installs it automatically — into `.claude/skills/claude-trail-search/` in the current project by default, or `~/.claude/skills/claude-trail-search/` with `--global` (from source or an npm install, that's a symlink back to the package's own copy, so it stays in sync; from a prebuilt binary it's a real file copy, since there's no source tree next to a single-file executable to link to). `clean` removes it. No separate step needed.
 
 ## Building binaries
 
@@ -160,4 +168,4 @@ Produces a single self-contained executable at `dist/claude-trail-<platform>-<ar
 - The `/api/transcript` and `/api/summary` endpoints resolve and check the requested path stays under the archive directory, guarding against path traversal.
 - `claude-trail archive` (the `SubagentStop` hook) fails safe: any error is logged to `hook-errors.log`, and it always exits 0 so it never blocks a subagent from completing.
 - Summary mode sends transcript content to the model via your existing local `claude` CLI session — the same trust boundary as any other Claude Code usage on this machine, just triggered from this tool instead of interactively.
-- `configure` only ever edits the `SubagentStop` and `SessionStart` arrays in `~/.claude/settings.json`, and only the specific entries it owns within them — verified against a real settings.json with several other tools' hooks already registered.
+- `configure` only ever edits the `SubagentStop` and `SessionStart` arrays in the target `settings.json` (project-level by default, `~/.claude/settings.json` with `--global`), and only the specific entries it owns within them — verified against a real `~/.claude/settings.json` with several other tools' hooks already registered.

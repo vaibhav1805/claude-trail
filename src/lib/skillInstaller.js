@@ -2,7 +2,6 @@
 
 const fs = require('fs');
 const path = require('path');
-const { claudeSkillsDir } = require('./paths');
 
 const SKILL_NAME = 'claude-trail-search';
 
@@ -15,12 +14,14 @@ function sourceSkillPath() {
   return path.resolve(__dirname, '..', '..', 'skills', SKILL_NAME, 'SKILL.md');
 }
 
-function targetSkillDir() {
-  return path.join(claudeSkillsDir(), SKILL_NAME);
+// baseSkillsDir is the caller-resolved target (project or global — see
+// lib/paths.js skillsDir()); this module only knows how to install into it.
+function targetSkillDir(baseSkillsDir) {
+  return path.join(baseSkillsDir, SKILL_NAME);
 }
 
-function targetSkillFile() {
-  return path.join(targetSkillDir(), 'SKILL.md');
+function targetSkillFile(baseSkillsDir) {
+  return path.join(targetSkillDir(baseSkillsDir), 'SKILL.md');
 }
 
 function getSea() {
@@ -33,9 +34,9 @@ function getSea() {
 }
 
 // Idempotent: re-running just confirms the link/copy is already correct.
-function installSkill() {
-  const target = targetSkillFile();
-  fs.mkdirSync(targetSkillDir(), { recursive: true });
+function installSkill(baseSkillsDir) {
+  const target = targetSkillFile(baseSkillsDir);
+  fs.mkdirSync(targetSkillDir(baseSkillsDir), { recursive: true });
 
   const sea = getSea();
   if (sea) {
@@ -55,8 +56,8 @@ function installSkill() {
   return { action: 'linked' };
 }
 
-function uninstallSkill() {
-  const dir = targetSkillDir();
+function uninstallSkill(baseSkillsDir) {
+  const dir = targetSkillDir(baseSkillsDir);
   const existed = fs.existsSync(dir);
   fs.rmSync(dir, { recursive: true, force: true });
   return { removed: existed };

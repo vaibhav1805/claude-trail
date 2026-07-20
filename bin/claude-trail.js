@@ -16,8 +16,8 @@ function printHelp() {
   console.log(`claude-trail — archive and browse Claude Code subagent transcripts
 
 Usage:
-  claude-trail configure                           First-time setup (data dir, hooks)
-  claude-trail clean                                Remove hooks and stop the background dashboard
+  claude-trail configure [--global]                 First-time setup (data dir, hooks) — project-scoped by default
+  claude-trail clean [--global]                     Remove hooks and stop the background dashboard
   claude-trail archive                              Archive a subagent transcript (invoked by the SubagentStop hook)
   claude-trail prune                                Prune old archived transcripts (invoked by the SessionStart hook)
   claude-trail status                               Print a summary of captured runs
