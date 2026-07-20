@@ -51,12 +51,14 @@ function writeSeaConfig() {
     main: BUNDLE_PATH,
     output: BLOB_PATH,
     disableExperimentalSEAWarning: true,
-    // The dashboard's index.html can't be read via fs.readFile(__dirname
-    // + ...) once bundled into a single-file binary with no sibling files
-    // on disk — embedded as a named SEA asset and loaded via
-    // node:sea.getAsset() instead (see dashboard.js).
+    // Neither the dashboard's index.html nor the claude-trail-search
+    // SKILL.md can be read via fs.readFile(__dirname + ...) once bundled
+    // into a single-file binary with no sibling files on disk — both are
+    // embedded as named SEA assets and loaded via node:sea.getAsset()
+    // instead (see dashboard.js and lib/skillInstaller.js).
     assets: {
       'index.html': path.join(ROOT, 'web', 'public', 'index.html'),
+      'skill.md': path.join(ROOT, 'skills', 'claude-trail-search', 'SKILL.md'),
     },
   };
   fs.writeFileSync(SEA_CONFIG_PATH, JSON.stringify(config, null, 2));

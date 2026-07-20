@@ -45,7 +45,7 @@ The registered hooks invoke the exact Node binary and script path that were acti
 npm run build:binary
 ```
 
-Produces a single self-contained executable at `dist/claude-trail-<platform>-<arch>` — a Node [Single Executable Application (SEA)](https://nodejs.org/api/single-executable-applications.html): esbuild bundles the CLI into one file, Node's `--experimental-sea-config` turns that into a blob, [postject](https://github.com/nodejs/postject) injects the blob (plus the dashboard's `index.html`, embedded as a named asset) into a copy of the `node` binary that built it. Only builds for the platform/arch you run it on — there's no cross-compiling a macOS binary from Linux, since it starts from a copy of the *running* `node` executable.
+Produces a single self-contained executable at `dist/claude-trail-<platform>-<arch>` — a Node [Single Executable Application (SEA)](https://nodejs.org/api/single-executable-applications.html): esbuild bundles the CLI into one file, Node's `--experimental-sea-config` turns that into a blob, [postject](https://github.com/nodejs/postject) injects the blob (plus the dashboard's `index.html` and the claude-trail-search `SKILL.md`, both embedded as named assets since there's no sibling file tree next to a single-file binary) into a copy of the `node` binary that built it. Only builds for the platform/arch you run it on — there's no cross-compiling a macOS binary from Linux, since it starts from a copy of the *running* `node` executable.
 
 `.github/workflows/build-binaries.yml` runs this on a 4-platform matrix (macOS arm64, macOS x64, Linux x64, Windows x64) whenever a `v*.*.*` tag is pushed, and attaches the resulting binaries to a GitHub Release for that tag. No installer script consumes these yet (see the status note above) — for now, grab the right binary from a release and run it directly.
 
@@ -115,7 +115,9 @@ This is also what the `claude-trail-search` Claude Code skill (see [Skill](#skil
 
 ## Skill
 
-`skills/claude-trail-search/SKILL.md` is a Claude Code skill (installed separately to `~/.claude/skills/claude-trail-search/`) that tells Claude when to proactively run `claude-trail search` — e.g. "have we hit this before?" or "what did that earlier subagent actually do?" — instead of you having to invoke the CLI yourself. It's a thin wrapper: all the actual searching happens in `claude-trail search`/`--show` above: the skill just adds the trigger and usage notes so Claude reaches for it unprompted when archived context is likely relevant.
+`skills/claude-trail-search/SKILL.md` is a Claude Code skill that tells Claude when to proactively run `claude-trail search` — e.g. "have we hit this before?" or "what did that earlier subagent actually do?" — instead of you having to invoke the CLI yourself. It's a thin wrapper: all the actual searching happens in `claude-trail search`/`--show` above; the skill just adds the trigger and usage notes so Claude reaches for it unprompted when archived context is likely relevant.
+
+`configure` installs it into `~/.claude/skills/claude-trail-search/` automatically (from source or an npm install, that's a symlink back to the package's own copy, so it stays in sync; from a prebuilt binary it's a real file copy, since there's no source tree next to a single-file executable to link to). `clean` removes it. No separate step needed.
 
 ## Configuration
 

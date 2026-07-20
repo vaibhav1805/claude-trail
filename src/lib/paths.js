@@ -24,4 +24,8 @@ function globalSettingsPath() {
   return path.join(os.homedir(), '.claude', 'settings.json');
 }
 
-module.exports = { dataDir, globalSettingsPath };
+function claudeSkillsDir() {
+  return path.join(os.homedir(), '.claude', 'skills');
+}
+
+module.exports = { dataDir, globalSettingsPath, claudeSkillsDir };
