@@ -19,26 +19,9 @@ A single research or debugging subagent can easily burn tens of thousands of tok
 - **Cheap, cached summaries when you do want one** — task / approach / outcome, generated on-demand via your own `claude` CLI (Haiku by default), cached so you never pay for the same summary twice.
 - **Local-only, zero runtime dependencies** — the dashboard binds to `127.0.0.1` only; no telemetry, no external services.
 
-## vs. claude-code-log
-
-[claude-code-log](https://github.com/daaain/claude-code-log) is a related, more mature tool worth knowing about — different enough in approach that picking the right one matters:
-
-| | claude-trail | claude-code-log |
-|---|---|---|
-| **Capture** | Automatic, live — a hook fires the moment a subagent finishes | Manual, post-hoc — you run it against transcripts that already exist |
-| **Scope** | Subagent transcripts specifically | Any Claude Code transcript — full sessions, whole projects |
-| **Interface** | Local dynamic web dashboard + CLI | Static HTML/Markdown export + TUI |
-| **Search** | CLI + dashboard, index or full-text (`--deep`) | Browser-side filtering, natural-language date ranges |
-| **Claude-callable** | Yes — a skill lets Claude query its own history mid-session | Not documented — appears to be a standalone viewer |
-| **Summaries** | On-demand LLM summary per entry | Token-usage stats, no LLM summarization |
-| **Retention** | Configurable auto-prune (`retentionDays`) | No built-in retention management — reads whatever transcripts already exist |
-| **Install** | Node.js — npm, prebuilt binary, or source | Python — pip, uvx, or source |
-
-Rough rule of thumb: reach for claude-trail if you want subagent work captured automatically and queryable by Claude itself. Reach for claude-code-log if you want a richer, more established viewer/exporter for full session history — timelines, token stats, multi-provider (Codex, Antigravity) support, commit-SHA linking.
-
 ## Install
 
-**npm** (not published yet — this will be the primary way to install once it is):
+**npm** (recommended):
 ```
 npm install -g @flurryhead/claude-trail
 ```
@@ -191,6 +174,23 @@ Produces a single self-contained executable at `dist/claude-trail-<platform>-<ar
 `.github/workflows/build-binaries.yml` runs this on a 4-platform matrix (macOS arm64, macOS x64, Linux x64, Windows x64) whenever a `v*.*.*` tag is pushed, and attaches the resulting binaries to a GitHub Release for that tag — this is what [Install](#install) above points at.
 
 **macOS caveat:** the binary is ad-hoc signed (`codesign --sign -`) as part of the build — required for it to launch at all once postject strips Node's original signature — but that's *not* the same as notarization. Gatekeeper will still flag it as being from an "unidentified developer" on first run. Real notarization (an Apple Developer certificate + Apple's notary service) is a deliberately deferred, separate piece of work.
+
+## vs. claude-code-log
+
+[claude-code-log](https://github.com/daaain/claude-code-log) is a related, more mature tool worth knowing about — different enough in approach that picking the right one matters:
+
+| | claude-trail | claude-code-log |
+|---|---|---|
+| **Capture** | Automatic, live — a hook fires the moment a subagent finishes | Manual, post-hoc — you run it against transcripts that already exist |
+| **Scope** | Subagent transcripts specifically | Any Claude Code transcript — full sessions, whole projects |
+| **Interface** | Local dynamic web dashboard + CLI | Static HTML/Markdown export + TUI |
+| **Search** | CLI + dashboard, index or full-text (`--deep`) | Browser-side filtering, natural-language date ranges |
+| **Claude-callable** | Yes — a skill lets Claude query its own history mid-session | Not documented — appears to be a standalone viewer |
+| **Summaries** | On-demand LLM summary per entry | Token-usage stats, no LLM summarization |
+| **Retention** | Configurable auto-prune (`retentionDays`) | No built-in retention management — reads whatever transcripts already exist |
+| **Install** | Node.js — npm, prebuilt binary, or source | Python — pip, uvx, or source |
+
+Rough rule of thumb: reach for claude-trail if you want subagent work captured automatically and queryable by Claude itself. Reach for claude-code-log if you want a richer, more established viewer/exporter for full session history — timelines, token stats, multi-provider (Codex, Antigravity) support, commit-SHA linking.
 
 ## Privacy / safety
 
