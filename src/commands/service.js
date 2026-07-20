@@ -1,31 +1,41 @@
 'use strict';
 
-const { getServiceModule } = require('../lib/service');
+const dashboardProcess = require('../lib/dashboardProcess');
+const { resolveRunCommand } = require('../lib/runCommand');
+const { loadConfig } = require('../lib/config');
 
 function main(argv) {
   const sub = argv[0];
-  const service = getServiceModule();
 
   if (sub === 'start') {
-    service.start();
-    console.log('claude-trail dashboard service started.');
+    const { webPort } = loadConfig();
+    const result = dashboardProcess.start(resolveRunCommand(), webPort);
+    if (result.alreadyRunning) {
+      console.log(`claude-trail dashboard already running: http://127.0.0.1:${result.port} (pid ${result.pid})`);
+      return;
+    }
+    console.log(`claude-trail dashboard started: http://127.0.0.1:${result.port} (pid ${result.pid})`);
     return;
   }
   if (sub === 'stop') {
-    service.stop();
-    console.log('claude-trail dashboard service stopped.');
+    const result = dashboardProcess.stop();
+    console.log(result.wasRunning ? `claude-trail dashboard stopped (pid ${result.pid}).` : 'claude-trail dashboard was not running.');
     return;
   }
   if (sub === 'restart') {
-    service.stop();
-    service.start();
-    console.log('claude-trail dashboard service restarted.');
+    dashboardProcess.stop();
+    const { webPort } = loadConfig();
+    const result = dashboardProcess.start(resolveRunCommand(), webPort);
+    console.log(`claude-trail dashboard restarted: http://127.0.0.1:${result.port} (pid ${result.pid})`);
     return;
   }
   if (sub === 'status') {
-    const s = service.status();
-    console.log(`installed: ${s.installed}`);
+    const s = dashboardProcess.status();
     console.log(`running: ${s.running}`);
+    if (s.running) {
+      console.log(`pid: ${s.pid}`);
+      console.log(`port: ${s.port}`);
+    }
     return;
   }
 

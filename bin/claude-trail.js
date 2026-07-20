@@ -2,11 +2,12 @@
 'use strict';
 
 const COMMANDS = {
-  install: () => require('../src/commands/install'),
-  uninstall: () => require('../src/commands/uninstall'),
+  configure: () => require('../src/commands/configure'),
+  clean: () => require('../src/commands/clean'),
   archive: () => require('../src/commands/archive'),
   prune: () => require('../src/commands/prune'),
   status: () => require('../src/commands/status'),
+  search: () => require('../src/commands/search'),
   dashboard: () => require('../src/commands/dashboard'),
   service: () => require('../src/commands/service'),
 };
@@ -15,13 +16,14 @@ function printHelp() {
   console.log(`claude-trail — archive and browse Claude Code subagent transcripts
 
 Usage:
-  claude-trail install                             First-time setup (data dir, hooks, boot service)
-  claude-trail uninstall                            Remove hooks and boot service
+  claude-trail configure                           First-time setup (data dir, hooks)
+  claude-trail clean                                Remove hooks and stop the background dashboard
   claude-trail archive                              Archive a subagent transcript (invoked by the SubagentStop hook)
   claude-trail prune                                Prune old archived transcripts (invoked by the SessionStart hook)
   claude-trail status                               Print a summary of captured runs
-  claude-trail dashboard [--port N]                 Run the local web dashboard
-  claude-trail service <start|stop|restart|status>  Manage the dashboard's boot service
+  claude-trail search <query> [opts]                Search archived subagent transcripts for context
+  claude-trail dashboard [--port N] [--background]  Run the local web dashboard
+  claude-trail service <start|stop|restart|status>  Run/stop the dashboard in the background
   claude-trail --version                            Print the installed version
   claude-trail --help                               Show this help
 `);

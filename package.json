@@ -6,8 +6,14 @@
   "bin": {
     "claude-trail": "bin/claude-trail.js"
   },
+  "scripts": {
+    "build:binary": "node scripts/build-sea.js"
+  },
   "engines": {
     "node": ">=20"
   },
-  "devDependencies": {}
+  "devDependencies": {
+    "esbuild": "^0.28.1",
+    "postject": "^1.0.0-alpha.6"
+  }
 }

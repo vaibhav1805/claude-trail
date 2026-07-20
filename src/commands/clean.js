@@ -2,17 +2,15 @@
 
 const { dataDir, globalSettingsPath } = require('../lib/paths');
 const { removeHooks } = require('../lib/settingsMerge');
-const { getServiceModule } = require('../lib/service');
+const dashboardProcess = require('../lib/dashboardProcess');
 
 function main() {
-  const service = getServiceModule();
-  service.uninstall();
-
   const hookResult = removeHooks(globalSettingsPath());
+  const stopResult = dashboardProcess.stop();
 
-  console.log('claude-trail uninstall complete.');
+  console.log('claude-trail clean complete.');
   console.log(`  hooks removed from ${globalSettingsPath()}: ${hookResult.removed ? 'yes' : 'none were present'}`);
-  console.log('  dashboard boot service: removed');
+  console.log(`  background dashboard stopped: ${stopResult.wasRunning ? 'yes' : 'was not running'}`);
   console.log(`  data dir left in place: ${dataDir()}`);
   console.log('  (delete it yourself if you also want to remove archived transcripts and config)');
 }

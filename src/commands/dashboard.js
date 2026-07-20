@@ -7,111 +7,24 @@ const url = require('url');
 const { dataDir } = require('../lib/paths');
 const { loadConfig } = require('../lib/config');
 const { spawnClaude } = require('../lib/claudeSpawn');
+const { readEntries, findEntryByArchivePath, resolveArchivePath, readTranscript } = require('../lib/archiveReader');
+const { resolveRunCommand } = require('../lib/runCommand');
+const dashboardProcess = require('../lib/dashboardProcess');
 
 const PUBLIC_DIR = path.resolve(__dirname, '..', '..', 'web', 'public');
 
-function archiveDir() {
-  return path.join(dataDir(), 'archive');
-}
-
-function indexPath() {
-  return path.join(dataDir(), 'index.jsonl');
-}
-
-function readEntries() {
-  const ip = indexPath();
-  if (!fs.existsSync(ip)) return [];
-  return fs
-    .readFileSync(ip, 'utf8')
-    .split('\n')
-    .filter(Boolean)
-    .map((line) => {
-      try {
-        return JSON.parse(line);
-      } catch {
-        return null;
-      }
-    })
-    .filter(Boolean)
-    .reverse(); // newest first
-}
-
-function findEntryByArchivePath(relativePath) {
-  return readEntries().find((e) => e.archive_path === relativePath) || null;
-}
-
-function extractText(content) {
-  if (typeof content === 'string') return content;
-  if (Array.isArray(content)) {
-    return content
-      .map((block) => {
-        if (!block || typeof block !== 'object') return '';
-        if (block.type === 'text') return block.text || '';
-        if (block.type === 'tool_use') return `[tool call: ${block.name || 'unknown'}]`;
-        if (block.type === 'tool_result') return '[tool result]';
-        if (block.type === 'thinking') return `[thinking] ${block.thinking || ''}`;
-        return '';
-      })
-      .filter(Boolean)
-      .join('\n');
-  }
-  return '';
-}
-
-// Harness/session bookkeeping line types that never carry conversation
-// content — dropped from the viewer entirely rather than shown as noise.
-const BOOKKEEPING_TYPES = new Set([
-  'mode',
-  'permission-mode',
-  'file-history-snapshot',
-  'file-history-delta',
-  'attachment',
-  'last-prompt',
-  'ai-title',
-  'queue-operation',
-  'system',
-]);
-
-function resolveArchivePath(relativePath) {
-  const resolved = path.resolve(dataDir(), relativePath);
-  if (!resolved.startsWith(archiveDir() + path.sep)) {
-    throw new Error('path escapes archive directory');
-  }
-  if (!fs.existsSync(resolved)) {
-    throw new Error('transcript not found');
-  }
-  return resolved;
-}
-
-// Renders each transcript line down to {type, role, text, timestamp} so the
-// frontend doesn't need to understand the full Claude Code transcript schema.
-function readTranscript(relativePath) {
-  const resolved = resolveArchivePath(relativePath);
-  const lines = fs.readFileSync(resolved, 'utf8').split('\n').filter(Boolean);
-  return lines
-    .map((line) => {
-      let parsed;
-      try {
-        parsed = JSON.parse(line);
-      } catch {
-        return { type: 'raw', text: line };
-      }
-      if (BOOKKEEPING_TYPES.has(parsed.type)) return null;
-      if (parsed.message && parsed.message.role) {
-        return {
-          type: parsed.type || parsed.message.role,
-          role: parsed.message.role,
-          text: extractText(parsed.message.content),
-          timestamp: parsed.timestamp || null,
-        };
-      }
-      return {
-        type: parsed.type || 'meta',
-        text: parsed.subtype ? `[${parsed.type}:${parsed.subtype}]` : `[${parsed.type || 'meta'}]`,
-        timestamp: parsed.timestamp || null,
-      };
-    })
-    .filter(Boolean);
+// When packaged as a Node SEA binary there's no `web/public/index.html`
+// sitting next to the executable to fs.readFile — it's embedded as a named
+// asset at build time instead (see scripts/build-sea.js) and read back via
+// node:sea.getAsset(). Under plain `node bin/claude-trail.js` execution
+// node:sea.isSea() is false, so this stays unused and the normal
+// filesystem read below runs exactly as before.
+let sea = null;
+try {
+  const seaModule = require('node:sea');
+  if (seaModule.isSea()) sea = seaModule;
+} catch {
+  // node:sea unavailable — not running as an SEA binary
 }
 
 const SUMMARY_PER_MESSAGE_MAX_CHARS = 4000;
@@ -272,12 +185,21 @@ function serveStatic(res, filePath, contentType) {
   });
 }
 
+function serveIndexHtml(res) {
+  if (sea) {
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+    res.end(Buffer.from(sea.getAsset('index.html')));
+    return;
+  }
+  serveStatic(res, path.join(PUBLIC_DIR, 'index.html'), 'text/html; charset=utf-8');
+}
+
 function createServer() {
   return http.createServer((req, res) => {
     const parsed = url.parse(req.url, true);
 
     if (parsed.pathname === '/' || parsed.pathname === '/index.html') {
-      serveStatic(res, path.join(PUBLIC_DIR, 'index.html'), 'text/html; charset=utf-8');
+      serveIndexHtml(res);
       return;
     }
 
@@ -333,13 +255,29 @@ function createServer() {
 
 function main(argv) {
   let portArg = null;
+  let background = false;
   for (let i = 0; i < argv.length; i += 1) {
     if (argv[i] === '--port' && argv[i + 1]) {
       portArg = Number(argv[i + 1]);
     }
+    if (argv[i] === '--background') {
+      background = true;
+    }
   }
   const config = loadConfig();
   const port = portArg && portArg > 0 ? portArg : config.webPort;
+
+  if (background) {
+    const result = dashboardProcess.start(resolveRunCommand(), port);
+    if (result.alreadyRunning) {
+      console.log(`claude-trail dashboard already running in the background: http://127.0.0.1:${result.port} (pid ${result.pid})`);
+      return;
+    }
+    console.log(`claude-trail dashboard started in the background: http://127.0.0.1:${result.port} (pid ${result.pid})`);
+    console.log(`  logs: ${dashboardProcess.logFilePath()}`);
+    console.log('  stop with: claude-trail service stop');
+    return;
+  }
 
   const server = createServer();
   server.listen(port, '127.0.0.1', () => {
