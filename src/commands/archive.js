@@ -41,15 +41,40 @@ function looksLikeSubagentTranscript(transcriptPath) {
   return segments.includes('subagents');
 }
 
-// Async/background subagent invocations have been observed to report the
-// *main* session transcript as transcript_path even though a dedicated
-// per-agent transcript genuinely exists alongside it, at a predictable
-// location: <project dir>/<session_id>/subagents/agent-<agent_id>.jsonl.
-// Used only as a fallback when transcript_path itself doesn't already
-// point at a subagents/ file.
-function candidateSubagentTranscriptPath(transcriptPath, sessionId, agentId) {
+// Async/background and Workflow-tool-orchestrated subagent invocations have
+// been observed to report the *main* session transcript as transcript_path
+// even though a dedicated per-agent transcript genuinely exists alongside
+// it, under <project dir>/<session_id>/subagents/ — but not always at a
+// fixed depth: plain async agents land at subagents/agent-<id>.jsonl, while
+// Workflow-tool agents nest one level deeper under
+// subagents/workflows/<workflow_run_id>/agent-<id>.jsonl. Rather than guess
+// every possible nesting pattern, search the whole subagents/ subtree for
+// the exact filename. Used only as a fallback when transcript_path itself
+// doesn't already point at a subagents/ file.
+function findSubagentTranscriptFile(transcriptPath, sessionId, agentId) {
   if (!transcriptPath || !sessionId || !agentId) return null;
-  return path.join(path.dirname(transcriptPath), sessionId, 'subagents', `agent-${agentId}.jsonl`);
+  const subagentsRoot = path.join(path.dirname(transcriptPath), sessionId, 'subagents');
+  const targetName = `agent-${agentId}.jsonl`;
+
+  const stack = [subagentsRoot];
+  while (stack.length) {
+    const dir = stack.pop();
+    let entries;
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch {
+      continue; // doesn't exist or unreadable — nothing under here
+    }
+    for (const entry of entries) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        stack.push(full);
+      } else if (entry.name === targetName) {
+        return full;
+      }
+    }
+  }
+  return null;
 }
 
 function run() {
@@ -84,10 +109,7 @@ function run() {
   if (transcript_path && fs.existsSync(transcript_path) && looksLikeSubagentTranscript(transcript_path)) {
     sourcePath = transcript_path;
   } else if (transcript_path) {
-    const candidate = candidateSubagentTranscriptPath(transcript_path, session_id, agent_id);
-    if (candidate && fs.existsSync(candidate)) {
-      sourcePath = candidate;
-    }
+    sourcePath = findSubagentTranscriptFile(transcript_path, session_id, agent_id);
   }
 
   let archivePath = null;
@@ -108,7 +130,7 @@ function run() {
     logError(
       `Skipped archiving for agent_id=${agent_id || 'unknown'}: transcript_path ` +
       `"${transcript_path}" is not under a subagents/ directory, and no dedicated ` +
-      `subagent transcript was found at the derived fallback path either.`
+      `subagent transcript named agent-${agent_id || 'unknown'}.jsonl was found anywhere under the session's subagents/ tree either.`
     );
   }
 
