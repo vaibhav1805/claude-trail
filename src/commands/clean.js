@@ -10,7 +10,14 @@ function main(argv) {
   const targetSettingsPath = settingsPath(isGlobal);
   const targetSkillsDir = skillsDir(isGlobal);
 
-  const hookResult = removeHooks(targetSettingsPath);
+  let hookResult;
+  try {
+    hookResult = removeHooks(targetSettingsPath);
+  } catch (err) {
+    console.error(`claude-trail clean failed: ${err.message}`);
+    process.exitCode = 1;
+    return;
+  }
   const stopResult = dashboardProcess.stop();
   const skillResult = uninstallSkill(targetSkillsDir);
 

@@ -16,7 +16,14 @@ function main(argv) {
   fs.mkdirSync(dataDir(), { recursive: true });
   const wroteConfig = writeDefaultConfigIfAbsent();
 
-  const hookResult = upsertHooks(targetSettingsPath, runCommandParts);
+  let hookResult;
+  try {
+    hookResult = upsertHooks(targetSettingsPath, runCommandParts);
+  } catch (err) {
+    console.error(`claude-trail configure failed: ${err.message}`);
+    process.exitCode = 1;
+    return;
+  }
   const skillResult = installSkill(targetSkillsDir);
 
   console.log('claude-trail configure complete.');

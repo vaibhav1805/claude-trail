@@ -4,6 +4,10 @@ build/
 *.log
 .DS_Store
 
+# Local project-scoped claude-trail wiring from running `configure` against
+# this repo itself (hooks, skill symlink) — machine-specific, not source.
+/.claude/
+
 # Legacy local data dir from before the OS-standard data dir migration.
 # Real installs write to the OS-appropriate location instead (see src/lib/paths.js).
 /archive/

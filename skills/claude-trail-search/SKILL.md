@@ -12,8 +12,10 @@ Wraps the `claude-trail search` CLI, which searches transcripts archived by [cla
 claude-trail isn't always on PATH — resolve once per session:
 
 ```bash
-command -v claude-trail >/dev/null 2>&1 && CT=claude-trail || CT="node /Users/flurryhead/Sandbox/lifeos/claude-trail/bin/claude-trail.js"
+command -v claude-trail >/dev/null 2>&1 && CT=claude-trail || CT=""
 ```
+
+If `$CT` is empty, claude-trail likely isn't installed on this machine — don't guess at a path. Tell the user briefly (e.g. "claude-trail isn't on PATH — install with `npm install -g @flurryhead/claude-trail` or grab a release binary") instead of silently skipping the search.
 
 ## Search
 

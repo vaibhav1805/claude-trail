@@ -52,8 +52,17 @@ function installSkill(baseSkillsDir) {
     // not a symlink (or doesn't exist yet) — fall through and (re)create it
   }
   fs.rmSync(target, { force: true });
-  fs.symlinkSync(source, target);
-  return { action: 'linked' };
+  try {
+    fs.symlinkSync(source, target);
+    return { action: 'linked' };
+  } catch (err) {
+    // Creating a symlink needs Developer Mode or admin rights on Windows —
+    // don't let that take configure down. A plain copy works everywhere;
+    // the only cost is it won't pick up future edits to the source file
+    // without re-running configure.
+    fs.copyFileSync(source, target);
+    return { action: 'copied (symlink unavailable: ' + err.code + ')' };
+  }
 }
 
 function uninstallSkill(baseSkillsDir) {

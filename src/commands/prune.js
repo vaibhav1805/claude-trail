@@ -79,7 +79,24 @@ function run() {
   }
 
   if (removedCount > 0) {
-    fs.writeFileSync(indexPath, kept.length ? kept.join('\n') + '\n' : '');
+    // archive.js can append a new line (a subagent completing concurrently)
+    // at any point during the scan above. Re-read right before writing and
+    // carry forward anything appended since our first read — archive.js
+    // only ever appends, never rewrites existing lines, so anything beyond
+    // the line count we started with is new and must be preserved rather
+    // than silently clobbered by this rewrite.
+    let currentLines = lines;
+    try {
+      currentLines = fs.readFileSync(indexPath, 'utf8').split('\n').filter(Boolean);
+    } catch (err) {
+      logError(err); // fall back to the lines already in hand
+    }
+    const appendedSinceScan = currentLines.slice(lines.length);
+    const finalLines = kept.concat(appendedSinceScan);
+
+    const tmpPath = `${indexPath}.${process.pid}.tmp`;
+    fs.writeFileSync(tmpPath, finalLines.length ? finalLines.join('\n') + '\n' : '');
+    fs.renameSync(tmpPath, indexPath);
     removeEmptyArchiveDirs(archiveRoot);
   }
 

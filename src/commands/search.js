@@ -2,15 +2,28 @@
 
 const { readEntries, readTranscript } = require('../lib/archiveReader');
 
-function matchesQuery(haystack, query) {
-  return haystack.toLowerCase().includes(query);
+// Split into lowercase words so a query like "database migration" matches
+// "migration of the database" — matchesQuery requires every token to appear
+// somewhere in the haystack (AND semantics), not the literal phrase verbatim.
+function tokenize(text) {
+  return text.toLowerCase().split(/\s+/).filter(Boolean);
 }
 
-function excerptAround(text, query, radius = 120) {
-  const idx = text.toLowerCase().indexOf(query);
+function matchesQuery(haystack, tokens) {
+  const lower = haystack.toLowerCase();
+  return tokens.every((token) => lower.includes(token));
+}
+
+function excerptAround(text, tokens, radius = 120) {
+  const lower = text.toLowerCase();
+  let idx = -1;
+  for (const token of tokens) {
+    const found = lower.indexOf(token);
+    if (found !== -1 && (idx === -1 || found < idx)) idx = found;
+  }
   if (idx === -1) return text.slice(0, radius * 2).replace(/\s+/g, ' ').trim();
   const start = Math.max(0, idx - radius);
-  const end = Math.min(text.length, idx + query.length + radius);
+  const end = Math.min(text.length, idx + radius);
   return (
     (start > 0 ? '…' : '') +
     text.slice(start, end).replace(/\s+/g, ' ').trim() +
@@ -20,7 +33,7 @@ function excerptAround(text, query, radius = 120) {
 
 // Scans the full archived transcript for a query — slower than the index-only
 // pass, so it's opt-in via --deep rather than always-on.
-function searchTranscript(entry, query) {
+function searchTranscript(entry, tokens) {
   if (!entry.archive_path) return null;
   let transcript;
   try {
@@ -29,7 +42,7 @@ function searchTranscript(entry, query) {
     return null; // archived transcript may have been pruned since indexing
   }
   for (const m of transcript) {
-    if (m.text && matchesQuery(m.text, query)) return m.text;
+    if (m.text && matchesQuery(m.text, tokens)) return m.text;
   }
   return null;
 }
@@ -89,12 +102,13 @@ function runSearch(argv) {
     positional.push(argv[i]);
   }
 
-  const query = positional.join(' ').trim().toLowerCase();
-  if (!query) {
+  const rawQuery = positional.join(' ').trim();
+  if (!rawQuery) {
     printHelp();
     process.exitCode = 1;
     return;
   }
+  const queryTokens = tokenize(rawQuery);
 
   const entries = readEntries(); // newest first
   const results = [];
@@ -110,13 +124,13 @@ function runSearch(argv) {
     let excerpt = null;
     let matchedIn = null;
 
-    if (matchesQuery(indexHaystack, query)) {
-      excerpt = excerptAround(entry.last_assistant_message || '', query);
+    if (matchesQuery(indexHaystack, queryTokens)) {
+      excerpt = excerptAround(entry.last_assistant_message || '', queryTokens);
       matchedIn = 'index';
     } else if (deep) {
-      const deepText = searchTranscript(entry, query);
+      const deepText = searchTranscript(entry, queryTokens);
       if (deepText) {
-        excerpt = excerptAround(deepText, query);
+        excerpt = excerptAround(deepText, queryTokens);
         matchedIn = 'transcript';
       }
     }
@@ -141,11 +155,11 @@ function runSearch(argv) {
 
   if (!results.length) {
     const hint = deep ? '' : ' (tip: pass --deep to also search full transcript bodies, not just the last message)';
-    console.log(`No archived subagent runs matched "${query}".${hint}`);
+    console.log(`No archived subagent runs matched "${rawQuery}".${hint}`);
     return;
   }
 
-  console.log(`${results.length} match(es) for "${query}":\n`);
+  console.log(`${results.length} match(es) for "${rawQuery}":\n`);
   for (const r of results) {
     console.log(`[${r.agent_type}] ${r.timestamp || ''}`);
     if (r.cwd) console.log(`  cwd: ${r.cwd}`);

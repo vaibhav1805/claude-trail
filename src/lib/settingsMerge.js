@@ -44,11 +44,27 @@ const HOOK_DEFS = {
   },
 };
 
+// Only missing-file is a real "nothing here yet" case — fall back silently.
+// A file that exists but fails to parse (mid-edit, trailing comma, etc.)
+// must NOT fall back silently: upsertHooks/removeHooks would then write
+// that fallback straight back over the real file, discarding whatever
+// was actually there. Throw instead so configure/clean abort loudly
+// rather than quietly destroying a hand-edited settings.json.
 function readJsonOrDefault(filePath, fallback) {
+  let raw;
   try {
-    return JSON.parse(fs.readFileSync(filePath, 'utf8'));
-  } catch {
-    return fallback;
+    raw = fs.readFileSync(filePath, 'utf8');
+  } catch (err) {
+    if (err.code === 'ENOENT') return fallback;
+    throw err;
+  }
+  try {
+    return JSON.parse(raw);
+  } catch (err) {
+    throw new Error(
+      `${filePath} exists but isn't valid JSON — refusing to touch it to avoid ` +
+      `overwriting whatever's actually there. Fix the JSON syntax and try again. (${err.message})`
+    );
   }
 }
 
