@@ -31,17 +31,40 @@ function removeEmptyArchiveDirs(archiveRoot) {
   }
 }
 
+// archive-main.js's cursor files (dataDir()/cursors/<session_id>.json) track
+// progress independently of index.jsonl, so they need their own sweep — a
+// session that ended weeks ago leaves an orphaned cursor with nothing else
+// to key its cleanup off of.
+function removeStaleCursors(cutoff) {
+  const cursorsDir = path.join(dataDir(), 'cursors');
+  if (!fs.existsSync(cursorsDir)) return;
+  for (const name of fs.readdirSync(cursorsDir)) {
+    const cursorFile = path.join(cursorsDir, name);
+    try {
+      const { updatedAt } = JSON.parse(fs.readFileSync(cursorFile, 'utf8'));
+      const updatedTime = Date.parse(updatedAt);
+      if (!Number.isNaN(updatedTime) && updatedTime < cutoff) {
+        fs.unlinkSync(cursorFile);
+      }
+    } catch (err) {
+      logError(err);
+    }
+  }
+}
+
 function run() {
   const { retentionDays } = loadConfig();
   const indexPath = path.join(dataDir(), 'index.jsonl');
   const archiveRoot = path.join(dataDir(), 'archive');
+  const cutoff = Date.now() - retentionDays * 24 * 60 * 60 * 1000;
+
+  removeStaleCursors(cutoff);
 
   if (!fs.existsSync(indexPath)) {
     console.log('claude-trail: no index.jsonl yet, nothing to prune.');
     return;
   }
 
-  const cutoff = Date.now() - retentionDays * 24 * 60 * 60 * 1000;
   const lines = fs.readFileSync(indexPath, 'utf8').split('\n').filter(Boolean);
 
   const kept = [];

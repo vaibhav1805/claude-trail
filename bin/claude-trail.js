@@ -5,6 +5,7 @@ const COMMANDS = {
   configure: () => require('../src/commands/configure'),
   clean: () => require('../src/commands/clean'),
   archive: () => require('../src/commands/archive'),
+  'archive-main': () => require('../src/commands/archive-main'),
   prune: () => require('../src/commands/prune'),
   status: () => require('../src/commands/status'),
   search: () => require('../src/commands/search'),
@@ -19,6 +20,8 @@ Usage:
   claude-trail configure [--global]                 First-time setup (data dir, hooks) — project-scoped by default
   claude-trail clean [--global]                     Remove hooks and stop the background dashboard
   claude-trail archive                              Archive a subagent transcript (invoked by the SubagentStop hook)
+  claude-trail archive-main                         Archive main-session transcript deltas (invoked by PreCompact/SessionEnd;
+                                                     no-op unless config.mainSessionCapture.enabled is true)
   claude-trail prune                                Prune old archived transcripts (invoked by the SessionStart hook)
   claude-trail status                               Print a summary of captured runs
   claude-trail search <query> [opts]                Search archived subagent transcripts for context

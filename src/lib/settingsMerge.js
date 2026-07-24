@@ -42,6 +42,28 @@ const HOOK_DEFS = {
       async: true,
     }),
   },
+  // Main-session capture is opt-in (config.mainSessionCapture.enabled, off by
+  // default — see config.js) but the hooks themselves are always wired so
+  // toggling the config on doesn't require re-running `configure`.
+  // archive-main.js no-ops immediately when the config flag is off.
+  PreCompact: {
+    matchPattern: matcherFor('archive-main'),
+    buildHook: (runCommandParts) => ({
+      type: 'command',
+      command: formatCommand(runCommandParts, ['archive-main']),
+      timeout: 10,
+      async: true,
+    }),
+  },
+  SessionEnd: {
+    matchPattern: matcherFor('archive-main'),
+    buildHook: (runCommandParts) => ({
+      type: 'command',
+      command: formatCommand(runCommandParts, ['archive-main']),
+      timeout: 10,
+      async: true,
+    }),
+  },
 };
 
 // Only missing-file is a real "nothing here yet" case — fall back silently.
