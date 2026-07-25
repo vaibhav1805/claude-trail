@@ -14,6 +14,14 @@ const DEFAULTS = {
   // always wired (see settingsMerge.js) but archive-main.js no-ops unless
   // this is explicitly turned on.
   mainSessionCapture: { enabled: false },
+  // Semantic search is opt-in: `claude-trail index` always works manually
+  // regardless of this flag, but `enabled: true` also lets the SessionStart
+  // -> prune hook run a small bounded auto-index pass (see prune.js) so new
+  // entries stay searchable without a manual step. Off by default because it
+  // requires the optional @huggingface/transformers dependency (not
+  // installed by default-safe npm installs on every platform, and entirely
+  // unavailable in the SEA binaries) and a one-time model download.
+  semanticSearch: { enabled: false, model: 'Xenova/all-MiniLM-L6-v2', autoIndexLimit: 20 },
 };
 
 function configPath() {
@@ -48,7 +56,21 @@ function loadConfig() {
         ? mainSessionCaptureRaw.enabled
         : DEFAULTS.mainSessionCapture.enabled,
   };
-  return { webPort, retentionDays, summaryMode, mainSessionCapture };
+  const semanticSearchRaw =
+    parsed.semanticSearch && typeof parsed.semanticSearch === 'object' ? parsed.semanticSearch : {};
+  const semanticSearch = {
+    enabled:
+      typeof semanticSearchRaw.enabled === 'boolean' ? semanticSearchRaw.enabled : DEFAULTS.semanticSearch.enabled,
+    model:
+      typeof semanticSearchRaw.model === 'string' && semanticSearchRaw.model
+        ? semanticSearchRaw.model
+        : DEFAULTS.semanticSearch.model,
+    autoIndexLimit:
+      typeof semanticSearchRaw.autoIndexLimit === 'number' && semanticSearchRaw.autoIndexLimit > 0
+        ? semanticSearchRaw.autoIndexLimit
+        : DEFAULTS.semanticSearch.autoIndexLimit,
+  };
+  return { webPort, retentionDays, summaryMode, mainSessionCapture, semanticSearch };
 }
 
 // Called only by `install` — never overwrites a config a user has already edited.

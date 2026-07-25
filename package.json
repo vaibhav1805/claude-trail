@@ -41,5 +41,16 @@
   "devDependencies": {
     "esbuild": "^0.28.1",
     "postject": "^1.0.0-alpha.6"
+  },
+  "optionalDependencies": {
+    "@huggingface/transformers": "^4.2.0"
+  },
+  "overrides": {
+    "onnxruntime-node": {
+      "adm-zip": "^0.6.0"
+    },
+    "@huggingface/transformers": {
+      "sharp": "^0.35.0"
+    }
   }
 }

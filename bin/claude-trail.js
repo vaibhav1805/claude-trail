@@ -9,6 +9,7 @@ const COMMANDS = {
   prune: () => require('../src/commands/prune'),
   status: () => require('../src/commands/status'),
   search: () => require('../src/commands/search'),
+  index: () => require('../src/commands/index'),
   dashboard: () => require('../src/commands/dashboard'),
   service: () => require('../src/commands/service'),
 };
@@ -25,6 +26,7 @@ Usage:
   claude-trail prune                                Prune old archived transcripts (invoked by the SessionStart hook)
   claude-trail status                               Print a summary of captured runs
   claude-trail search <query> [opts]                Search archived subagent transcripts for context
+  claude-trail index [--limit N]                    Build/update the local semantic-search embedding index
   claude-trail dashboard [--port N] [--background]  Run the local web dashboard
   claude-trail service <start|stop|restart|status>  Run/stop the dashboard in the background
   claude-trail --version                            Print the installed version

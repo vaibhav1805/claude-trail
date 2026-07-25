@@ -4,6 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const { dataDir } = require('../lib/paths');
 const { loadConfig } = require('../lib/config');
+const { removeVectors } = require('../lib/vectorStore');
 
 function logError(err) {
   try {
@@ -53,7 +54,8 @@ function removeStaleCursors(cutoff) {
 }
 
 function run() {
-  const { retentionDays } = loadConfig();
+  const config = loadConfig();
+  const { retentionDays } = config;
   const indexPath = path.join(dataDir(), 'index.jsonl');
   const archiveRoot = path.join(dataDir(), 'archive');
   const cutoff = Date.now() - retentionDays * 24 * 60 * 60 * 1000;
@@ -62,12 +64,14 @@ function run() {
 
   if (!fs.existsSync(indexPath)) {
     console.log('claude-trail: no index.jsonl yet, nothing to prune.');
+    maybeAutoIndex(config);
     return;
   }
 
   const lines = fs.readFileSync(indexPath, 'utf8').split('\n').filter(Boolean);
 
   const kept = [];
+  const removedArchivePaths = [];
   let removedCount = 0;
 
   for (const line of lines) {
@@ -97,6 +101,7 @@ function run() {
       } catch (err) {
         logError(err);
       }
+      removedArchivePaths.push(entry.archive_path);
     }
     removedCount += 1;
   }
@@ -121,12 +126,59 @@ function run() {
     fs.writeFileSync(tmpPath, finalLines.length ? finalLines.join('\n') + '\n' : '');
     fs.renameSync(tmpPath, indexPath);
     removeEmptyArchiveDirs(archiveRoot);
+
+    if (removedArchivePaths.length) {
+      try {
+        removeVectors(removedArchivePaths);
+      } catch (err) {
+        logError(err); // stale vector rows are harmless noise, never fatal
+      }
+    }
   }
 
   console.log(
     `claude-trail: pruned ${removedCount} entr${removedCount === 1 ? 'y' : 'ies'} ` +
     `older than ${retentionDays} days. ${kept.length} remain.`
   );
+
+  maybeAutoIndex(config);
+}
+
+// Bounded, best-effort: only runs when the user has explicitly opted in via
+// config.semanticSearch.enabled, and only ever embeds a small capped batch
+// per run (autoIndexLimit) so a large backlog can't blow past this hook's
+// 15s timeout (see settingsMerge.js SessionStart def) or delay session
+// start noticeably. Never fatal — a failure here (missing optional
+// dependency, network hiccup downloading the model) must not break prune's
+// own job of trimming old entries, which already succeeded above.
+function maybeAutoIndex(config) {
+  if (!config.semanticSearch.enabled) return;
+  try {
+    const { readEntries } = require('../lib/archiveReader');
+    const { readVectors, appendVectors } = require('../lib/vectorStore');
+    const { embedBatch } = require('../lib/embeddingModel');
+    const { embeddingTextFor } = require('../lib/embeddingText');
+
+    const entries = readEntries().filter((e) => e.archive_path && embeddingTextFor(e));
+    const already = new Set(readVectors().map((v) => v.archive_path));
+    const pending = entries.filter((e) => !already.has(e.archive_path)).slice(0, config.semanticSearch.autoIndexLimit);
+    if (!pending.length) return;
+
+    embedBatch(config.semanticSearch.model, pending.map(embeddingTextFor))
+      .then((vectors) => {
+        appendVectors(
+          pending.map((entry, i) => ({
+            archive_path: entry.archive_path,
+            model: config.semanticSearch.model,
+            embedded_at: new Date().toISOString(),
+            vector: vectors[i],
+          }))
+        );
+      })
+      .catch((err) => logError(err));
+  } catch (err) {
+    logError(err); // optional dependency missing, etc. — silently skip
+  }
 }
 
 function main() {
