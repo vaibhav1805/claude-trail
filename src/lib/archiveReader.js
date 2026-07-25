@@ -34,6 +34,21 @@ function findEntryByArchivePath(relativePath) {
   return readEntries().find((e) => e.archive_path === relativePath) || null;
 }
 
+// Most tool_use blocks are opaque to a reader (a Bash command, an Edit
+// diff) and collapsing them to a bare tag is the right call. SendMessage is
+// the exception: for inter-agent teammate messaging, the tool call *is* the
+// message — its input.message carries the actual reported content, and
+// rendering it as just "[tool call: SendMessage]" hides real substance from
+// --show/--deep search and from archive-main.js's last_assistant_message
+// pickup (which otherwise falls back to this opaque tag instead of finding
+// real prose from an earlier turn).
+function toolUseText(block) {
+  if (block.name === 'SendMessage' && block.input && typeof block.input.message === 'string') {
+    return block.input.message;
+  }
+  return `[tool call: ${block.name || 'unknown'}]`;
+}
+
 function extractText(content) {
   if (typeof content === 'string') return content;
   if (Array.isArray(content)) {
@@ -41,7 +56,7 @@ function extractText(content) {
       .map((block) => {
         if (!block || typeof block !== 'object') return '';
         if (block.type === 'text') return block.text || '';
-        if (block.type === 'tool_use') return `[tool call: ${block.name || 'unknown'}]`;
+        if (block.type === 'tool_use') return toolUseText(block);
         if (block.type === 'tool_result') return '[tool result]';
         if (block.type === 'thinking') return `[thinking] ${block.thinking || ''}`;
         return '';
