@@ -41,18 +41,18 @@ Requires `claude-trail index` to have been run at least once, and only works if 
 
 Narrow with `--type <agent_type>` when relevant — `--type main-session` searches only main-session captures, on machines where that's enabled. Add `--json` for structured output instead of reading text directly.
 
-## Read full context
+## Read full context — do this before answering, not after
 
-Each match includes an `archive_path`. To read the whole conversation instead of just the matched excerpt:
+A search result's excerpt is a pointer, not the answer. If a match looks relevant, pull its full transcript **before** replying — don't stop at "a subagent looked into this" and offer to fetch more only if asked. Each match includes an `archive_path`:
 
 ```bash
 $CT search --show "<archive_path>"
 ```
 
-Prints the full cleaned transcript (harness/bookkeeping lines stripped) as `--- ROLE ---` blocks.
+Prints the full cleaned transcript (harness/bookkeeping lines stripped) as `--- ROLE ---` blocks. Read that output, then actually answer the question using it as your source — quote or closely paraphrase the substance, the way you would from any other document you just read. Don't confuse "I found where this was answered" with "I answered it" — the second one is the job. Reserve *offering* to pull more detail for when the excerpt is genuinely ambiguous about relevance, not as a substitute for reading it yourself.
 
 ## Interpret results
 
 - Treat no matches as "nothing found in the archive," not "this never came up" — retention defaults to 30 days, and only machines with claude-trail configured get captured.
-- Weave findings into the response naturally (e.g. "a subagent looked into this on 2026-07-14 and found X") rather than pasting raw transcript text.
+- Cite where it came from naturally (e.g. "a subagent looked into this on 2026-07-14 and found X") but lead with the substance, not the fact that you found something.
 - Treat archived findings as a snapshot, not ground truth — verify against current code before relying on them.
