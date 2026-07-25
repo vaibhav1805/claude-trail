@@ -1,6 +1,6 @@
 ---
 name: claude-trail-search
-description: Search Claude Code subagent transcripts archived by claude-trail's SubagentStop hook for prior context. Use PROACTIVELY before investigating a bug, design question, or codebase area that a past subagent might already have looked into, or before starting work similar in shape to something recently delegated to a subagent — even if the user hasn't asked to search. Also use when the user explicitly asks "have we hit this before", "what did that agent find/do", to search claude-trail, or to look up past subagent work.
+description: Search Claude Code subagent transcripts (and, if enabled, main-session history) archived by claude-trail for prior context — by keyword, full-text, or paraphrase-aware semantic search. Use PROACTIVELY before investigating a bug, design question, or codebase area that a past subagent might already have looked into, or before starting work similar in shape to something recently delegated to a subagent — even if the user hasn't asked to search. Also use when the user explicitly asks "have we hit this before", "what did that agent find/do", to search claude-trail, or to look up past subagent work.
 ---
 
 # claude-trail-search
@@ -31,7 +31,15 @@ If nothing useful comes back, rerun with `--deep` to scan full transcript bodies
 $CT search "<query>" --deep --limit 5
 ```
 
-Narrow with `--type <agent_type>` when relevant. Add `--json` for structured output instead of reading text directly.
+If `--deep` still comes up empty but you have a real reason to believe something relevant was archived under different wording (a paraphrase, not the same words), try semantic search instead of concluding nothing exists:
+
+```bash
+$CT search "<query>" --semantic --limit 5
+```
+
+Requires `claude-trail index` to have been run at least once, and only works if the optional embedding dependency is installed — if it errors, fall back to reporting no match rather than treating the error as a dead end worth pursuing further. Read the similarity scores: a result whose score is far above the rest is a real hit; several closely-scored results (especially low ones) usually mean the query didn't land on anything specific — don't present those with the same confidence as a clear top match.
+
+Narrow with `--type <agent_type>` when relevant — `--type main-session` searches only main-session captures, on machines where that's enabled. Add `--json` for structured output instead of reading text directly.
 
 ## Read full context
 

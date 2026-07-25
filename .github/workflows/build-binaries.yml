@@ -28,7 +28,14 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 'lts/*'
+          # Pinned rather than 'lts/*': a floating LTS silently jumped from
+          # Node 22 to 24 between the v0.1.2 and v0.2.0 tag builds, and npm
+          # 11 (bundled with 24) enforces stricter package-lock.json sync
+          # for nested optionalDependencies than npm 10 did — broke `npm ci`
+          # on all 4 platforms with no code change on our end. Bump this
+          # deliberately, testing `npm ci` locally first, rather than
+          # inheriting whatever GitHub's runners consider "latest LTS" today.
+          node-version: '22'
 
       - run: npm ci
 
