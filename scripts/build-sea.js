@@ -39,7 +39,16 @@ function bundle() {
     platform: 'node',
     format: 'cjs',
     outfile: BUNDLE_PATH,
-    external: ['node:sea'],
+    // @huggingface/transformers (semantic search, an optionalDependency) is
+    // deliberately unavailable in SEA builds — it pulls in onnxruntime-node,
+    // which ships prebuilt native .node binaries for every platform/arch;
+    // esbuild has no loader for those and fails trying to bundle them.
+    // Marking it external stops esbuild from tracing into it at all, so
+    // `require`/`import()` of it is left as-is in the bundle — it simply
+    // isn't installed in a SEA context, and embeddingModel.js's existing
+    // try/catch around the dynamic import already surfaces a clear error
+    // (MISSING_DEP_HINT) if `index`/`--semantic` are invoked from one.
+    external: ['node:sea', '@huggingface/transformers'],
   });
 }
 
